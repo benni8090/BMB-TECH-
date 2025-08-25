@@ -1,130 +1,106 @@
+'use strict';
+
 const { bmbtz } = require("../devbmb/bmbtz");
-const axios = require('axios');
-const ytSearch = require('yt-search');
-const conf = require(__dirname + '/../settings');
+const axios = require("axios");
 
-// Define the command with aliases for play
-bmbtz({
-  nomCom: "play3",
-  aliases: ["song", "playdoc", "audio", "mp3"],
-  categorie: "Search",
-  reaction: "🎧"
-}, async (dest, zk, commandOptions) => {
-  const { arg, ms, repondre } = commandOptions;
+// Newsletter info
+const newsletterInfo = {
+  jid: "120363382023564830@newsletter",
+  name: "𝗕.𝗠.𝗕-𝗧𝗘𝗖𝗛",
+  serverId: 0x8f
+};
 
-  // Check if a query is provided
-  if (!arg[0]) {
-    return repondre("Please provide a video name.");
-  }
+// Config
+const config = {
+  ALIVE_IMAGE: "https://files.catbox.moe/wmi0ne.jpg",
+  AUDIO_MESSAGE: "https://files.catbox.moe/m1wgdb.mp3",
+  CHANNEL_LINK: "https://whatsapp.com/channel/0029VawO6hgF6sn7k3SuVU3z",
+  NEWSLETTER_INFO: newsletterInfo,
+  THUMBNAIL: "https://files.catbox.moe/wmi0ne.jpg"
+};
 
-  const query = arg.join(" ");
+/**
+ * Send Alive/Test message
+ */
+async function sendAliveMessage(dest, zk, options, isTest = false) {
+  const sender = options?.ms?.pushName || "Unknown Contact";
+  const label = isTest ? "TEST" : "ALIVE";
 
   try {
-    // Perform a YouTube search based on the query
-    const searchResults = await ytSearch(query);
+    // preload resources
+    await Promise.all([
+      axios.head(config.ALIVE_IMAGE),
+      axios.head(config.AUDIO_MESSAGE)
+    ]);
 
-    // Check if any videos were found
-    if (!searchResults || !searchResults.videos.length) {
-      return repondre('No video found for the specified query.');
-    }
+    const caption = `*Always Active*\n\n*Contact: ${sender}*\n` +
+      (isTest
+        ? "🎙️ [Visit Channel](" + config.CHANNEL_LINK + ")"
+        : "🙏 [Visit Channel](" + config.CHANNEL_LINK + ")");
 
-    const firstVideo = searchResults.videos[0];
-    const videoUrl = firstVideo.url;
+    const title = `Message from: ${sender}\n${isTest ? "Queen-M is Active" : "Queen-M is Active"}`;
 
-    // Function to get download data from APIs
-    const getDownloadData = async (url) => {
-      try {
-        const response = await axios.get(url);
-        return response.data;
-      } catch (error) {
-        console.error('Error fetching data from API:', error);
-        return { success: false };
+    const message = {
+      image: { url: config.ALIVE_IMAGE },
+      caption,
+      audio: { url: config.AUDIO_MESSAGE, mimetype: "audio/mpeg", ptt: true },
+      contextInfo: {
+        isForwarded: true,
+        forwardedNewsletterMessageInfo: config.NEWSLETTER_INFO,
+        forwardingScore: -1,
+        externalAdReply: {
+          title,
+          body: config.NEWSLETTER_INFO.name,
+          thumbnailUrl: config.THUMBNAIL,
+          sourceUrl: config.CHANNEL_LINK,
+          mediaType: 1,
+          renderLargerThumbnail: true
+        }
       }
     };
 
-    // List of APIs to try
-    const apis = [
-      `https://apis.davidcyriltech.my.id/download/ytmp4?url=${encodeURIComponent(videoUrl)}`,
-      `https://apis.davidcyriltech.my.id/youtube/mp3?url=${encodeURIComponent(videoUrl)}`,
-      `https://www.dark-yasiya-api.site/download/ytmp3?url=${encodeURIComponent(videoUrl)}`,
-      `https://api.giftedtech.web.id/api/download/dlmp3?url=${encodeURIComponent(videoUrl)}&apikey=gifted-md`,
-      `https://api.dreaded.site/api/ytdl/audio?url=${encodeURIComponent(videoUrl)}`
-    ];
+    await zk.sendMessage(dest, message);
+    console.log(`${label} message sent successfully to ${dest}`);
+    return true;
 
-    let downloadData;
-    for (const api of apis) {
-      downloadData = await getDownloadData(api);
-      if (downloadData && downloadData.success) break;
+  } catch (err) {
+    console.error(`${label} command error:`, err.message);
+
+    // fallback text only
+    try {
+      await zk.sendMessage(dest, {
+        text: `⚠️ ${label} Notification ⚠️\n\n` +
+          `Bot is active but media couldn't load\n` +
+          `Contact: ${sender}\n` +
+          `Channel: ${config.CHANNEL_LINK}`
+      });
+    } catch (fallbackErr) {
+      console.error("Fallback message failed:", fallbackErr.message);
     }
-
-    // Check if a valid download URL was found
-    if (!downloadData || !downloadData.success) {
-      return repondre('Failed to retrieve download URL from all sources. Please try again later.');
-    }
-
-    const downloadUrl = downloadData.result.download_url;
-    const videoDetails = downloadData.result;
-
-    // Prepare the message payload with external ad details
-    const messagePayloads = [
-      {
-       caption: `\n*B.M.B-TECH DOWNLOADER*\n
- *Title: ${videoDetails.title}*
- *Quality: High*
- *Duration: ${firstVideo.timestamp}*
-> *Bmb-Tech Player* 
-`,
-       document: { url: downloadUrl },
-       mimetype: 'audio/mpeg',
-       contextInfo: {
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-          newsletterJid: '120363382023564830@newsletter',
-          newsletterName: "Bmb-Tech",
-          serverMessageId: 143,
-          },
-          forwardingScore: 999, // Score to indicate it has been forwarded
-          externalAdReply: {
-            title: "Bmb-Tech",
-            body: "YouTube Search",
-            thumbnailUrl: 'https://files.catbox.moe/wmi0ne.jpg', // Add thumbnail URL if required 
-            sourceUrl: 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x', // Add source URL if necessary
-            mediaType: 1,
-            renderLargerThumbnail: true
-          },
-        },
-      },
-      {
-        audio: { url: downloadUrl },
-        mimetype: 'audio/mp4',
-        contextInfo: {
-          isForwarded: true,
-          forwardedNewsletterMessageInfo: {
-          newsletterJid: '120363288304618280@newsletter',
-          newsletterName: "Queen-M",
-          serverMessageId: 143,
-          },
-          forwardingScore: 999, // Score to indicate it has been forwarded
-          externalAdReply: {
-            title: "Bmb-Tech",
-            body: "YouTube Search",
-            thumbnailUrl: 'https://files.catbox.moe/wmi0ne.jpg', // Add thumbnail URL if required 
-            sourceUrl: 'https://whatsapp.com/channel/0029Vad7YNyJuyA77CtIPX0x', // Add source URL if necessary
-            mediaType: 1,
-            renderLargerThumbnail: true
-          },
-        },
-      }
-    ];
-
-    // Send the download link to the user for each payload
-    for (const messagePayload of messagePayloads) {
-      await zk.sendMessage(dest, messagePayload, { quoted: ms });
-    }
-
-  } catch (error) {
-    console.error('Error during download process:', error);
-    return repondre(`Download failed due to an error: ${error.message || error}`);
+    return false;
   }
+}
+
+// live command
+bmbtz({
+  nomCom: "live",
+  reaction: "🪀",
+  categorie: "General",
+  desc: "Check if bot is running",
+  nomFichier: __filename
+}, async (dest, zk, options) => {
+  await sendAliveMessage(dest, zk, options);
 });
-            
+
+// Test command
+bmbtz({
+  nomCom: "bot",
+  reaction: "🪀",
+  categorie: "General",
+  desc: "Test bot functionality",
+  nomFichier: __filename
+}, async (dest, zk, options) => {
+  await sendAliveMessage(dest, zk, options, true);
+});
+
+console.log("Bot commands loaded successfully");
